@@ -10,7 +10,10 @@ const {
 } = require('discord.js');
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages
+    ]
 });
 
 const teams = [];
@@ -71,6 +74,12 @@ const commands = [
     new SlashCommandBuilder()
         .setName('add-result')
         .setDescription('Process a result message')
+        .addChannelOption(option =>
+            option
+                .setName('channel')
+                .setDescription('Results channel')
+                .setRequired(true)
+        )
         .addStringOption(option =>
             option
                 .setName('message_id')
@@ -102,6 +111,7 @@ client.once('ready', () => {
 });
 
 client.on('interactionCreate', async interaction => {
+
     if (!interaction.isChatInputCommand()) return;
 
     // PROFILE
@@ -118,9 +128,7 @@ client.on('interactionCreate', async interaction => {
                 { name: '🧤 Clean Sheets', value: '0', inline: true }
             );
 
-        return interaction.reply({
-            embeds: [embed]
-        });
+        return interaction.reply({ embeds: [embed] });
     }
 
     // CREATE TEAM
@@ -155,9 +163,7 @@ client.on('interactionCreate', async interaction => {
                 `🏆 **${name}**\n👔 Manager: ${manager}\n🌍 League: ${league}\n\n👥 Roster: 0/18`
             );
 
-        return interaction.reply({
-            embeds: [embed]
-        });
+        return interaction.reply({ embeds: [embed] });
     }
 
     // ADD PLAYER
@@ -238,23 +244,55 @@ client.on('interactionCreate', async interaction => {
     // ADD RESULT
     if (interaction.commandName === 'add-result') {
 
+        const channel =
+            interaction.options.getChannel('channel');
+
         const messageId =
             interaction.options.getString('message_id');
 
         const competition =
             interaction.options.getString('competition');
 
-        const embed = new EmbedBuilder()
-            .setColor(0x00ff88)
-            .setTitle('✅ Result Added')
-            .setDescription(
-                `📨 Message ID: ${messageId}\n🏆 Competition: ${competition}`
-            );
+        try {
 
-        return interaction.reply({
-            embeds: [embed]
-        });
+            const message =
+                await channel.messages.fetch(messageId);
+
+            const embed = new EmbedBuilder()
+                .setColor(0x00ff88)
+                .setTitle('✅ Result Found')
+                .addFields(
+                    {
+                        name: '🏆 Competition',
+                        value: competition
+                    },
+                    {
+                        name: '📨 Message ID',
+                        value: messageId
+                    },
+                    {
+                        name: '📄 Result Content',
+                        value: message.content.length > 1024
+                            ? message.content.slice(0, 1020) + '...'
+                            : message.content
+                    }
+                );
+
+            return interaction.reply({
+                embeds: [embed]
+            });
+
+        } catch (error) {
+
+            console.error(error);
+
+            return interaction.reply({
+                content: '❌ Could not find that message.',
+                ephemeral: true
+            });
+        }
     }
+
 });
 
 registerCommands()
